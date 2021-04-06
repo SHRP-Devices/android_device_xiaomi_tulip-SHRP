@@ -1,0 +1,62 @@
+name: Building recovery
+
+on: workflow_dispatch
+
+env:
+  MANIFEST: git://github.com/SHRP/platform_manifest_twrp_omni.git -b v3_9.0
+  DEVICE: tulip
+  DT_LINK: git://github.com/Divkix/android_device_xiaomi_tulip-SHRP.git -b android-9.0
+  DT_PATH: device/xiaomi/tulip
+  GIT_USER: Divkix
+  GIT_EMAIL: techdroidroot@gmail.com
+  TZ: Asia/Kolkata
+
+jobs:
+  build:
+    runs-on: ubuntu-18.04
+
+    steps:
+      - name: Setting up build environment
+        run: |
+          sudo rm -rf /usr/share/dotnet /etc/mysql /etc/php /etc/apt/sources.list.d
+          docker rmi `docker images -q`
+          sudo apt-get remove account-plugin-facebook account-plugin-flickr account-plugin-jabber account-plugin-salut account-plugin-twitter account-plugin-windows-live account-plugin-yahoo aisleriot brltty duplicity empathy empathy-common example-content gnome-accessibility-themes gnome-contacts gnome-mahjongg gnome-mines gnome-orca gnome-screensaver gnome-sudoku gnome-video-effects gnomine landscape-common libreoffice-avmedia-backend-gstreamer libreoffice-base-core libreoffice-calc libreoffice-common libreoffice-core libreoffice-draw libreoffice-gnome libreoffice-gtk libreoffice-impress libreoffice-math libreoffice-ogltrans libreoffice-pdfimport libreoffice-style-galaxy libreoffice-style-human libreoffice-writer libsane libsane-common mcp-account-manager-uoa python3-uno rhythmbox rhythmbox-plugins rhythmbox-plugin-zeitgeist sane-utils shotwell shotwell-common telepathy-gabble telepathy-haze telepathy-idle telepathy-indicator telepathy-logger telepathy-mission-control-5 telepathy-salut totem totem-common totem-plugins printer-driver-brlaser printer-driver-foo2zjs printer-driver-foo2zjs-common printer-driver-m2300w printer-driver-ptouch printer-driver-splix
+          git config --global user.name "${GIT_USER}"
+          git config --global user.email "${GIT_EMAIL}"
+          git config --global color.ui true
+          mkdir recovery
+          git clone https://github.com/akhilnarang/scripts.git
+          chmod +x scripts/setup/android_build_env.sh
+          cd scripts/setup
+          ./android_build_env.sh
+          sudo rm /usr/bin/python
+          sudo ln -s /usr/bin/python2 /usr/bin/python
+
+      - name: Syncing Recovery Source
+        run: |
+          cd recovery
+          repo init --depth=1 -u ${MANIFEST} --groups=all,-notdefault,-device,-darwin,-x86,-mips
+          repo sync -c -q --force-sync --no-clone-bundle --no-tags -j6
+
+      - name: Syncing Device Tree
+        run: |
+          cd recovery
+          git clone ${DT_LINK} --depth=1 ${DT_PATH}
+
+      - name: Building Recovery
+        run: |
+          cd recovery
+          export ALLOW_MISSING_DEPENDENCIES=true
+          source build/envsetup.sh
+          lunch omni_${DEVICE}-eng
+          mka recoveryimage
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: RecoveryZip
+          path: recovery/out/target/product/*/*.zip
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: RecoveryImage
+          path: recovery/out/target/product/*/*.img
