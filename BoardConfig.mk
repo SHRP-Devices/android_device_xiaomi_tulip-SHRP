@@ -151,3 +151,6 @@ SHRP_EXPRESS := true
 
 # Making device official
 SHRP_OFFICIAL := true
+
+# Dark Theme
+SHRP_DARK := true
